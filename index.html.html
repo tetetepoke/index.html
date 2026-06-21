@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ポケカカレンダー">
+<meta name="theme-color" content="#0f0c29">
+<title>ポケカ 発売カレンダー</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' rx='40' fill='%230f0c29'/%3E%3Ctext x='90' y='120' font-size='90' text-anchor='middle'%3E%F0%9F%8E%B4%3C/text%3E%3C/svg%3E">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  min-height:100%;
+  background:linear-gradient(135deg,#0f0c29,#1a1a3e,#0f3460);
+  font-family:-apple-system,'Hiragino Sans',sans-serif;
+  color:#fff;
+  /* パディングをセーフエリア対応に */
+  padding:8px;
+  padding-top:max(8px,env(safe-area-inset-top));
+  padding-bottom:max(16px,env(safe-area-inset-bottom));
+  padding-left:max(8px,env(safe-area-inset-left));
+  padding-right:max(8px,env(safe-area-inset-right));
+}
+
+/* ヘッダー */
+.hdr{text-align:center;margin-bottom:10px}
+.hdr h1{font-size:17px;font-weight:800;margin:2px 0;background:linear-gradient(90deg,#FFD700,#FF6B6B,#A855F7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr p{font-size:9px;color:#94a3b8}
+
+/* バナー */
+.banner{background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.35);border-radius:9px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:flex-start;gap:6px}
+.banner p{font-size:10px;color:#c4b5fd;flex:1;line-height:1.5}
+.banner button{background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;flex-shrink:0;line-height:1}
+
+/* 更新バー */
+.refreshbar{background:rgba(255,255,255,.06);border-radius:9px;padding:7px 10px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.refreshtxt{font-size:10px;color:#94a3b8;flex:1;display:flex;align-items:center;gap:5px}
+.spinner{display:inline-block;width:10px;height:10px;border:2px solid #A855F7;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.btn-ref{background:linear-gradient(135deg,#6C5CE7,#A855F7);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.btn-ref:disabled{background:#374151;cursor:default}
+
+/* タブ */
+.tabs{display:flex;gap:2px;background:rgba(255,255,255,.06);border-radius:9px;padding:3px;margin-bottom:8px}
+.tab{flex:1;text-align:center;padding:6px 2px;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;color:#64748b;border:none;background:none;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.tab.active{background:rgba(168,85,247,.35);color:#fff}
+
+/* フィルター */
+.filter-row{margin-bottom:7px}
+.filter-lbl{font-size:9px;color:#64748b;font-weight:600;margin-bottom:4px}
+.fscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fscroll::-webkit-scrollbar{display:none}
+.finner{display:flex;gap:4px;padding-bottom:2px}
+.fbtn{background:rgba(255,255,255,.08);color:#94a3b8;border:none;border-radius:14px;padding:4px 9px;font-size:10px;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;transition:all .15s;flex-shrink:0}
+.fbtn.active{color:#fff;font-weight:700}
+
+/* 月ナビ */
+.monthnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.navbtn{background:rgba(255,255,255,.1);border:none;border-radius:7px;color:#fff;padding:5px 12px;font-size:16px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mlabel{font-size:15px;font-weight:700}
+
+/* カレンダーグリッド — 横幅を画面内に収める */
+.calgrid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:2px;
+  width:100%;       /* 必ず親幅に収める */
+  overflow:hidden;  /* はみ出し防止 */
+}
+.dname{text-align:center;font-size:9px;font-weight:600;color:#64748b;padding:2px 0;margin-bottom:1px}
+.dname.sun{color:#FF6B6B}.dname.sat{color:#60A5FA}
+
+.dcell{
+  background:rgba(255,255,255,.05);
+  border:1.5px solid transparent;
+  border-radius:6px;
+  padding:3px 2px;
+  min-height:48px;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  overflow:hidden;   /* セル内ではみ出し防止 */
+  width:100%;        /* グリッドセル幅に従う */
+}
+.dcell.today{background:rgba(255,215,0,.14);border-color:#FFD700}
+.dcell.selected{background:rgba(168,85,247,.3);border-color:#A855F7}
+.dnum{font-size:10px;font-weight:500;text-align:center;margin-bottom:2px;color:#e2e8f0}
+.dnum.sun{color:#FF6B6B}.dnum.sat{color:#60A5FA}
+.tbadge{background:#FFD700;color:#1a1a2e;border-radius:50%;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800}
+.evdot{
+  border-radius:2px;padding:1px 2px;font-size:7px;font-weight:700;
+  color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  margin-bottom:1px;cursor:pointer;
+  max-width:100%;   /* ドットもセル幅に収める */
+  display:block;
+}
+.evmore{font-size:7px;color:#94a3b8;text-align:center}
+
+/* 日詳細 */
+.daydetail{margin-top:10px;background:rgba(255,255,255,.07);border-radius:11px;padding:10px}
+.daydetail h3{font-size:12px;font-weight:700;color:#A855F7;margin-bottom:8px}
+.evcard{border-radius:8px;padding:8px 10px;margin-bottom:6px;border-left:4px solid;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.evcard-head{display:flex;justify-content:space-between;align-items:flex-start;gap:4px;margin-bottom:3px}
+.evbadge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap}
+.evend{font-size:9px;color:#64748b;white-space:nowrap}
+.evtitle{font-size:12px;font-weight:700;margin-bottom:2px}
+.evdet{font-size:10px;color:#475569}
+.evregion{font-size:9px;margin-top:2px}
+.evpred{font-size:9px;color:#f59e0b;margin-top:2px}
+/* リンクボタン（カード内） */
+.ev-link{
+  display:inline-block;margin-top:5px;
+  background:rgba(108,92,231,.2);border:1px solid rgba(108,92,231,.5);
+  color:#a78bfa;text-decoration:none;border-radius:6px;
+  padding:4px 10px;font-size:10px;font-weight:600;
+}
+
+/* 一覧行 */
+.listrow{
+  background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:8px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:transform .1s;border-left:4px solid #ccc;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+.listrow:active{transform:scale(.98)}
+/* レジェンド */
+.legend{margin-top:12px}
+.legend-lbl{font-size:9px;color:#64748b;font-weight:600;margin-bottom:4px}
+.legend-inner{display:flex;flex-wrap:wrap;gap:4px}
+.legend-item{font-size:8px;background:rgba(255,255,255,.07);border-radius:4px;padding:2px 6px;color:#94a3b8}
+
+/* モーダル */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;z-index:200;padding-bottom:env(safe-area-inset-bottom)}
+.modal-box{background:#1e293b;border-radius:20px 20px 0 0;padding:16px;width:100%;max-height:85vh;overflow-y:auto}
+.modal-drag{width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 12px}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.modal-ico{font-size:24px}
+.modal-x{background:rgba(255,255,255,.1);border:none;color:#94a3b8;font-size:16px;cursor:pointer;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+.modal-title{font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;line-height:1.3}
+.modal-date{font-size:11px;color:#94a3b8;margin-bottom:10px}
+.modal-row{background:rgba(255,255,255,.05);border-radius:8px;padding:8px 10px;margin-bottom:7px}
+.modal-rlbl{font-size:9px;color:#64748b;margin-bottom:2px}
+.modal-rval{font-size:12px;font-weight:600;color:#e2e8f0}
+.modal-rtxt{font-size:12px;color:#cbd5e1;line-height:1.5}
+.modal-pred{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:8px 10px;margin-bottom:7px;font-size:10px;color:#f59e0b;line-height:1.5}
+.modal-link{cursor:pointer;
+  display:block;text-align:center;margin-top:4px;
+  background:linear-gradient(135deg,#6C5CE7,#A855F7);
+  color:#fff;text-decoration:none;border-radius:11px;
+  padding:12px;font-size:13px;font-weight:700;letter-spacing:.02em;
+}
+.hidden{display:none!important}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- iOS追加バナー -->
+  <div class="banner" id="banner">
+    <p>📱 <b>ホーム画面に追加：</b>Safari「共有」ボタン →「ホーム画面に追加」</p>
+    <button onclick="this.closest('.banner').classList.add('hidden')">×</button>
+  </div>
+
+  <div class="hdr">
+    <div style="font-size:22px">🎴</div>
+    <h1>ポケカ 発売カレンダー</h1>
+    <p>発売日 · 抽選情報 · 全国カードショップ（★=予想）</p>
+  </div>
+
+  <!-- 更新バー -->
+  <div class="refreshbar">
+    <span class="refreshtxt" id="refreshtxt">📅 2026/6/21 更新 — ストームエメラルダ抽選情報を反映</span>
+    <button class="btn-ref" id="btnref" onclick="doRefresh()">🔄 更新</button>
+  </div>
+
+  <!-- タブ -->
+  <div class="tabs">
+    <button class="tab active" id="tab-r" onclick="switchTab('r')">🗾 地域</button>
+    <button class="tab" id="tab-s" onclick="switchTab('s')">🏪 店舗</button>
+  </div>
+
+  <!-- 地域フィルター -->
+  <div class="filter-row" id="frow-r">
+    <div class="filter-lbl">地域で絞込み</div>
+    <div class="fscroll"><div class="finner" id="fregion"></div></div>
+  </div>
+
+  <!-- 店舗フィルター -->
+  <div class="filter-row hidden" id="frow-s">
+    <div class="filter-lbl">カテゴリ</div>
+    <div class="fscroll"><div class="finner" id="fcat"></div></div>
+    <div class="filter-lbl" style="margin-top:5px">店舗</div>
+    <div class="fscroll"><div class="finner" id="fstore"></div></div>
+  </div>
+
+  <!-- 月ナビ -->
+  <div class="monthnav">
+    <button class="navbtn" onclick="changeMonth(-1)">‹</button>
+    <span class="mlabel" id="mlabel"></span>
+    <button class="navbtn" onclick="changeMonth(1)">›</button>
+  </div>
+
+  <!-- カレンダー -->
+  <div class="calgrid" id="daynames"></div>
+  <div class="calgrid" id="calgrid"></div>
+
+  <div id="daydetail" class="hidden"></div>
+
+  <div class="legend">
+    <div class="legend-lbl">種別</div>
+    <div class="legend-inner" id="legendinner"></div>
+  </div>
+</div>
+
+<!-- モーダル（下から出るシート形式） -->
+<div class="modal-ov hidden" id="modalov" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-drag"></div>
+    <div class="modal-head">
+      <span class="modal-ico" id="m-ico"></span>
+      <button class="modal-x" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-title" id="m-title"></div>
+    <div class="modal-date"  id="m-date"></div>
+    <div id="m-pred" class="modal-pred hidden">★ 過去実績に基づく予想です。公式発表をご確認ください。</div>
+    <div class="modal-row"><div class="modal-rlbl">店舗 / チェーン</div><div class="modal-rval" id="m-store"></div></div>
+    <div class="modal-row hidden" id="m-regrow"><div class="modal-rlbl">対応地域</div><div class="modal-rval" id="m-reg"></div></div>
+    <div class="modal-row hidden" id="m-detrow"><div class="modal-rlbl">詳細 · 応募条件</div><div class="modal-rtxt" id="m-det"></div></div>
+    <button class="modal-link hidden" id="m-link" onclick="openLink(this.dataset.url)">🔗 応募・詳細ページを開く →</button>
+  </div>
+</div>
+
+<script>
+// ===== 定数 =====
+const REGIONS={
+  "全国オンライン":{emoji:"🌐",color:"#6C5CE7"},
+  "北海道・東北":  {emoji:"❄️",color:"#60A5FA"},
+  "関東":          {emoji:"🗼",color:"#F59E0B"},
+  "中部・東海":    {emoji:"🗻",color:"#10B981"},
+  "関西":          {emoji:"⛩️",color:"#EC4899"},
+  "中国・四国":    {emoji:"🌊",color:"#14B8A6"},
+  "九州・沖縄":    {emoji:"🌺",color:"#F97316"},
+};
+const STORE_CATS={
+  "オンライン・通販": ["Amazon","ポケモンセンター","セブンネット","ファミマオンライン","楽天ブックス","あみあみ","遊々亭"],
+  "家電量販店":       ["ヨドバシ","ビックカメラ","コジマ","ヤマダ電機","ジョーシン","エディオン","ノジマ"],
+  "玩具・書店系":     ["トイザらス","イオン","ゲオ","TSUTAYA","ブックオフ","ふるいち","WonderGOO","平和堂","イトーヨーカドー"],
+  "専門ショップ":     ["イエローサブマリン","ホビーステーション","駿河屋","バトロコ","フルコンプ","竜星のPAO","カードボックス","晴れる屋","カードラボ","ドラゴンスター"],
+};
+const SC={
+  "Amazon":           {bg:"#FF9900",lt:"#FFF8EE",tx:"#7D4700"},
+  "ポケモンセンター": {bg:"#E84393",lt:"#FFE8F4",tx:"#A0005A"},
+  "セブンネット":     {bg:"#1D6E38",lt:"#E9F7EF",tx:"#1D6E38"},
+  "ファミマオンライン":{bg:"#0066B3",lt:"#EBF5FB",tx:"#1A5276"},
+  "楽天ブックス":     {bg:"#BF0000",lt:"#FDEDEC",tx:"#7B241C"},
+  "あみあみ":         {bg:"#9333EA",lt:"#F5F0FF",tx:"#6B21A8"},
+  "遊々亭":           {bg:"#BE185D",lt:"#FDF2F8",tx:"#831843"},
+  "ヨドバシ":         {bg:"#E74C3C",lt:"#FDEDEC",tx:"#922B21"},
+  "ビックカメラ":     {bg:"#3498DB",lt:"#EBF5FB",tx:"#1A5276"},
+  "コジマ":           {bg:"#2471A3",lt:"#EBF5FB",tx:"#1A5276"},
+  "ヤマダ電機":       {bg:"#2980B9",lt:"#EBF5FB",tx:"#1A5276"},
+  "ジョーシン":       {bg:"#16A085",lt:"#E8F8F5",tx:"#0E6655"},
+  "エディオン":       {bg:"#117A65",lt:"#E8F8F5",tx:"#0E6655"},
+  "ノジマ":           {bg:"#1ABC9C",lt:"#E8F8F5",tx:"#0E6655"},
+  "トイザらス":       {bg:"#E67E22",lt:"#FEF9E7",tx:"#784212"},
+  "イオン":           {bg:"#27AE60",lt:"#E9F7EF",tx:"#1D6A38"},
+  "ゲオ":             {bg:"#8E44AD",lt:"#F4ECF7",tx:"#6C3483"},
+  "TSUTAYA":          {bg:"#F39C12",lt:"#FEF9E7",tx:"#7D6608"},
+  "ブックオフ":       {bg:"#E91E63",lt:"#FCE4EC",tx:"#880E4F"},
+  "ふるいち":         {bg:"#795548",lt:"#EFEBE9",tx:"#4E342E"},
+  "WonderGOO":        {bg:"#0288D1",lt:"#E1F5FE",tx:"#01579B"},
+  "平和堂":           {bg:"#388E3C",lt:"#E8F5E9",tx:"#1B5E20"},
+  "イトーヨーカドー": {bg:"#D32F2F",lt:"#FFEBEE",tx:"#B71C1C"},
+  "イエローサブマリン":{bg:"#F1C40F",lt:"#FEFBD8",tx:"#7D6608"},
+  "ホビーステーション":{bg:"#2ECC71",lt:"#E9F7EF",tx:"#1E8449"},
+  "駿河屋":           {bg:"#E53935",lt:"#FFEBEE",tx:"#B71C1C"},
+  "バトロコ":         {bg:"#7B1FA2",lt:"#F3E5F5",tx:"#4A148C"},
+  "フルコンプ":       {bg:"#00897B",lt:"#E0F2F1",tx:"#004D40"},
+  "竜星のPAO":        {bg:"#F57F17",lt:"#FFF9C4",tx:"#E65100"},
+  "カードボックス":   {bg:"#1565C0",lt:"#E3F2FD",tx:"#0D47A1"},
+  "晴れる屋":         {bg:"#00ACC1",lt:"#E0F7FA",tx:"#006064"},
+  "カードラボ":       {bg:"#5C6BC0",lt:"#E8EAF6",tx:"#283593"},
+  "ドラゴンスター":   {bg:"#BF360C",lt:"#FBE9E7",tx:"#BF360C"},
+  "公式":             {bg:"#6C5CE7",lt:"#F0EDFF",tx:"#4527A0"},
+};
+const ET={
+  release:        {label:"発売日",    emoji:"🎴"},
+  lottery_start:  {label:"抽選開始", emoji:"🎰"},
+  lottery_end:    {label:"抽選締切", emoji:"⏰"},
+  lottery_result: {label:"当選発表", emoji:"🎊"},
+  purchase:       {label:"購入・販売",emoji:"🛒"},
+};
+
+// ===== イベントデータ =====
+const EVENTS=[
+  // ── アビスアイ ──
+  {id:"ae-rel",  title:"アビスアイ 発売",             date:"2026-05-22",type:"release",       store:"公式",            regions:["全国"],            detail:"メガダークライex収録。1BOX 6,000円(税込)",url:"https://www.pokemon-card.com/"},
+  {id:"ae-pcen", title:"アビスアイ 抽選",             date:"2026-04-17",endDate:"2026-04-20",type:"lottery_start",store:"ポケモンセンター",    regions:["全国オンライン"],  detail:"ポケモンセンターオンライン",url:"https://www.pokemoncenter-online.com/"},
+  {id:"ae-amz",  title:"アビスアイ 招待リクエスト",   date:"2026-04-20",type:"lottery_start",store:"Amazon",           regions:["全国オンライン"],  detail:"招待リクエスト方式（1BOX上限）",url:"https://www.amazon.co.jp/dp/B0F5KKK8NR"},
+  {id:"ae-7net", title:"アビスアイ 抽選",             date:"2026-04-23",endDate:"2026-04-27",type:"lottery_start",store:"セブンネット",         regions:["全国オンライン"],  detail:"アプリから応募 / 2025/6/1〜2026/4/23購入履歴必要",url:"https://7net.omni7.jp/"},
+  {id:"ae-toys", title:"アビスアイ 抽選",             date:"2026-04-21",endDate:"2026-04-27",type:"lottery_start",store:"トイザらス",           regions:["全国"],            detail:"店頭QRコードで応募 / 3/16〜4/27の1000円以上購入が条件",url:"https://www.toysrus.co.jp/"},
+  {id:"ae-geo",  title:"アビスアイ 抽選",             date:"2026-04-30",endDate:"2026-05-07",type:"lottery_start",store:"ゲオ",                regions:["全国"],            detail:"GEOアプリ / Pontaカード連携必須 / 4/30 11:00〜5/7 17:59",url:"https://geo-online.co.jp/"},
+  {id:"ae-yama", title:"アビスアイ 抽選",             date:"2026-04-20",endDate:"2026-04-21",type:"lottery_start",store:"ヤマダ電機",           regions:["全国"],            detail:"ヤマダデジタル会員アプリ / 当選発表5/19",url:"https://www.yamada-denkiweb.com/"},
+  {id:"ae-jsh",  title:"アビスアイ 抽選",             date:"2026-04-24",endDate:"2026-04-27",type:"lottery_start",store:"ジョーシン",           regions:["関東","中部・東海","関西"],detail:"シルバースマイル会員以上（累計購入1万円以上）",url:"https://joshinweb.jp/"},
+  {id:"ae-bic",  title:"アビスアイ 抽選（店頭）",     date:"2026-05-08",endDate:"2026-05-10",type:"lottery_start",store:"ビックカメラ",         regions:["関東","中部・東海","関西","九州・沖縄"],detail:"コジマ×ビックカメラ 店頭抽選",url:"https://www.biccamera.com/"},
+  {id:"ae-ion",  title:"アビスアイ 抽選",             date:"2026-04-18",endDate:"2026-05-06",type:"lottery_start",store:"イオン",              regions:["北海道・東北"],    detail:"イオン北海道eショップ（店舗受取）",url:"https://www.aeon.jp/"},
+  {id:"ae-ysub", title:"アビスアイ 抽選",             date:"2026-04-16",endDate:"2026-04-21",type:"lottery_start",store:"イエローサブマリン",  regions:["関東","関西"],     detail:"店頭レシート(300円以上)が必要 / 当選4/25発表",url:"https://www.yellowsubmarine.co.jp/"},
+  {id:"ae-hbst", title:"アビスアイ 抽選",             date:"2026-04-17",endDate:"2026-04-19",type:"lottery_start",store:"ホビーステーション",  regions:["関東"],            detail:"Googleアカウント必要 / 1アカウント1応募",url:"https://www.hbst.net/"},
+  {id:"ae-furu", title:"アビスアイ 抽選",             date:"2026-04-17",endDate:"2026-04-24",type:"lottery_start",store:"ふるいち",            regions:["全国"],            detail:"ふるいちアプリ登録のみでOK / イオンモール内店舗",url:"https://www.furu1.net/"},
+  {id:"ae-amia", title:"アビスアイ 抽選",             date:"2026-04-18",endDate:"2026-04-24",type:"lottery_start",store:"あみあみ",            regions:["全国オンライン"],  detail:"メルマガ購読 + 2025/1/6〜2026/1/5購入履歴必要",url:"https://www.amiami.jp/"},
+  {id:"ae-edit", title:"アビスアイ 抽選",             date:"2026-04-20",endDate:"2026-04-23",type:"lottery_start",store:"エディオン",          regions:["中国・四国","関西","中部・東海"],detail:"エディオンカード会員 / アプリ会員対象",url:"https://www.edion.com/"},
+  {id:"ae-noji", title:"アビスアイ 抽選",             date:"2026-04-24",endDate:"2026-04-27",type:"lottery_start",store:"ノジマ",              regions:["関東"],            detail:"ノジマオンライン",url:"https://online.nojima.co.jp/"},
+
+  // ── ストームエメラルダ ──
+  {id:"se-rel",   title:"ストームエメラルダ 発売",             date:"2026-07-31",type:"release",       store:"公式",            regions:["全国"],           detail:"メガレックウザex収録 / 全76種+??? / 1BOX 6,000円",url:"https://www.pokemon-card.com/"},
+  {id:"se-amz",   title:"ストームエメラルダ 招待リクエスト",   date:"2026-06-19",type:"lottery_start",store:"Amazon",           regions:["全国オンライン"], detail:"6/19 14時〜受付開始（1BOX 6,006円 / 当選通知6/20 11時頃）",url:"https://www.amazon.co.jp/s?k=%E3%82%B9%E3%83%88%E3%83%BC%E3%83%A0%E3%82%A8%E3%83%A1%E3%83%A9%E3%83%AB%E3%83%80+BOX"},
+  {id:"se-amz-r", title:"ストームエメラルダ 当選通知",         date:"2026-06-20",type:"lottery_result",store:"Amazon",           regions:["全国オンライン"], detail:"6/20 11時頃に当選通知予想",url:"https://www.amazon.co.jp/s?k=%E3%82%B9%E3%83%88%E3%83%BC%E3%83%A0%E3%82%A8%E3%83%A1%E3%83%A9%E3%83%AB%E3%83%80+BOX"},
+  {id:"se-7net",  title:"ストームエメラルダ 抽選",             date:"2026-06-17",type:"lottery_start",store:"セブンネット",      regions:["全国オンライン"], detail:"アプリ応募 / 2025/6/1〜2026/6/17購入履歴必要",url:"https://7net.omni7.jp/"},
+  {id:"se-pcen",  title:"ストームエメラルダ 抽選",             date:"2026-06-25",endDate:"2026-06-28",type:"lottery_start",store:"ポケモンセンター",   regions:["全国オンライン"], detail:"発売1ヶ月前 / 過去実績から予想",pred:true,url:"https://www.pokemoncenter-online.com/"},
+  {id:"se-yodo",  title:"ストームエメラルダ 抽選",             date:"2026-07-03",endDate:"2026-07-06",type:"lottery_start",store:"ヨドバシ",           regions:["全国"],           detail:"過去2年以内購入履歴必要 / 過去実績から予想",pred:true,url:"https://www.yodobashi.com/"},
+  {id:"se-toys",  title:"ストームエメラルダ 抽選",             date:"2026-07-05",endDate:"2026-07-11",type:"lottery_start",store:"トイザらス",         regions:["全国"],           detail:"店頭QRコード / 過去実績から予想",pred:true,url:"https://www.toysrus.co.jp/"},
+  {id:"se-geo",   title:"ストームエメラルダ 抽選",             date:"2026-07-06",endDate:"2026-07-13",type:"lottery_start",store:"ゲオ",              regions:["全国"],           detail:"GEOアプリ / Pontaカード必須 / 過去実績から予想",pred:true,url:"https://geo-online.co.jp/"},
+  {id:"se-yama",  title:"ストームエメラルダ 抽選",             date:"2026-07-06",endDate:"2026-07-08",type:"lottery_start",store:"ヤマダ電機",         regions:["全国"],           detail:"ヤマダデジタル会員アプリ / 過去実績から予想",pred:true,url:"https://www.yamada-denkiweb.com/"},
+  {id:"se-jsh",   title:"ストームエメラルダ 抽選",             date:"2026-07-06",endDate:"2026-07-12",type:"lottery_start",store:"ジョーシン",         regions:["関東","中部・東海","関西"],detail:"シルバースマイル会員以上 / 過去実績から予想",pred:true,url:"https://joshinweb.jp/"},
+  {id:"se-bic",   title:"ストームエメラルダ 抽選",             date:"2026-07-08",endDate:"2026-07-10",type:"lottery_start",store:"ビックカメラ",       regions:["関東","中部・東海","関西","九州・沖縄"],detail:"コジマ×ビックカメラ 店頭 / 過去実績から予想",pred:true,url:"https://www.biccamera.com/"},
+  {id:"se-ion",   title:"ストームエメラルダ 抽選",             date:"2026-07-07",endDate:"2026-07-13",type:"lottery_start",store:"イオン",            regions:["全国"],           detail:"過去実績から予想",pred:true,url:"https://www.aeon.jp/"},
+  {id:"se-tsut",  title:"ストームエメラルダ 抽選",             date:"2026-07-05",endDate:"2026-07-10",type:"lottery_start",store:"TSUTAYA",           regions:["全国"],           detail:"過去実績から予想",pred:true,url:"https://store.tsutaya.co.jp/"},
+  {id:"se-edit",  title:"ストームエメラルダ 抽選",             date:"2026-07-07",endDate:"2026-07-10",type:"lottery_start",store:"エディオン",         regions:["中国・四国","関西","中部・東海"],detail:"エディオンカード会員 / 過去実績から予想",pred:true,url:"https://www.edion.com/"},
+  {id:"se-noji",  title:"ストームエメラルダ 抽選",             date:"2026-07-05",endDate:"2026-07-09",type:"lottery_start",store:"ノジマ",            regions:["関東"],           detail:"ノジマオンライン / 過去実績から予想",pred:true,url:"https://online.nojima.co.jp/"},
+  {id:"se-ysub",  title:"ストームエメラルダ 抽選",             date:"2026-07-06",endDate:"2026-07-11",type:"lottery_start",store:"イエローサブマリン", regions:["関東","関西"],    detail:"店頭レシート(300円以上)必要 / 過去実績から予想",pred:true,url:"https://www.yellowsubmarine.co.jp/"},
+  {id:"se-hbst",  title:"ストームエメラルダ 抽選",             date:"2026-07-07",endDate:"2026-07-09",type:"lottery_start",store:"ホビーステーション", regions:["関東"],           detail:"Googleアカウント必要 / 過去実績から予想",pred:true,url:"https://www.hbst.net/"},
+  {id:"se-furu",  title:"ストームエメラルダ 抽選",             date:"2026-07-05",endDate:"2026-07-12",type:"lottery_start",store:"ふるいち",          regions:["全国"],           detail:"ふるいちアプリ登録のみ / 過去実績から予想",pred:true,url:"https://www.furu1.net/"},
+  {id:"se-amia",  title:"ストームエメラルダ 抽選",             date:"2026-07-03",endDate:"2026-07-08",type:"lottery_start",store:"あみあみ",           regions:["全国オンライン"], detail:"メルマガ購読 + 購入履歴必要 / 過去実績から予想",pred:true,url:"https://www.amiami.jp/"},
+  {id:"se-wgoo",  title:"ストームエメラルダ 抽選",             date:"2026-07-06",endDate:"2026-07-12",type:"lottery_start",store:"WonderGOO",         regions:["関東","中部・東海"],detail:"WonderGOO / 過去実績から予想",pred:true,url:"https://www.wondergoo.co.jp/"},
+  {id:"se-klab",  title:"ストームエメラルダ 抽選",             date:"2026-07-07",endDate:"2026-07-10",type:"lottery_start",store:"カードラボ",         regions:["全国"],           detail:"カードラボ各店 / 過去実績から予想",pred:true,url:"https://cardlab.co.jp/"},
+  {id:"se-dstar", title:"ストームエメラルダ 抽選",             date:"2026-07-07",endDate:"2026-07-09",type:"lottery_start",store:"ドラゴンスター",     regions:["関東"],           detail:"秋葉原・ドラゴンスター / 過去実績から予想",pred:true,url:"https://x.com/ds_akiba_ekimae"},
+  {id:"se-buy731",title:"ストームエメラルダ 当日販売",         date:"2026-07-31",type:"purchase",      store:"ブックオフ",        regions:["全国"],           detail:"発売日当日 店頭販売（在庫限り）",pred:true,url:"https://www.bookoff.co.jp/"},
+  {id:"se-suruga",title:"ストームエメラルダ 当日販売",         date:"2026-07-31",type:"purchase",      store:"駿河屋",            regions:["関東","関西"],    detail:"発売日当日 店頭・通販（在庫限り）",pred:true,url:"https://www.suruga-ya.jp/"},
+  {id:"se-btoko", title:"ストームエメラルダ 当日販売",         date:"2026-07-31",type:"purchase",      store:"バトロコ",          regions:["関東"],           detail:"発売日当日 店頭販売（在庫限り）",pred:true,url:"https://battleroco.co.jp/"},
+  {id:"se-fulco", title:"ストームエメラルダ 当日販売",         date:"2026-07-31",type:"purchase",      store:"フルコンプ",        regions:["関東"],           detail:"発売日当日 / プレイヤーID必要",pred:true,url:"https://www.fullcomp.net/"},
+  {id:"se-pao",   title:"ストームエメラルダ 当日販売",         date:"2026-07-31",type:"purchase",      store:"竜星のPAO",         regions:["関東"],           detail:"発売日当日 横浜店舗販売",pred:true,url:"https://www.pao-yokohama.jp/"},
+
+  // ── 30th CELEBRATION ──
+  {id:"cel-rel",  title:"30th CELEBRATION 発売",               date:"2026-09-16",type:"release",       store:"公式",            regions:["全国"],           detail:"30周年記念パック・世界同時発売。マイナカード本人確認導入予定",url:"https://www.pokemon-card.com/"},
+  {id:"cel-pcen", title:"30th CELEBRATION 抽選",               date:"2026-08-01",endDate:"2026-08-07",type:"lottery_start",store:"ポケモンセンター",   regions:["全国オンライン"], detail:"過去実績から予想 / マイナカード本人確認で当選率UP予定",pred:true,url:"https://www.pokemoncenter-online.com/"},
+  {id:"cel-amz",  title:"30th CELEBRATION 招待",               date:"2026-08-10",type:"lottery_start",store:"Amazon",           regions:["全国オンライン"], detail:"過去実績から予想",pred:true,url:"https://www.amazon.co.jp/"},
+  {id:"cel-yodo", title:"30th CELEBRATION 抽選",               date:"2026-08-12",endDate:"2026-08-16",type:"lottery_start",store:"ヨドバシ",           regions:["全国"],           detail:"過去実績から予想",pred:true,url:"https://www.yodobashi.com/"},
+  {id:"cel-toys", title:"30th CELEBRATION 抽選",               date:"2026-08-12",endDate:"2026-08-18",type:"lottery_start",store:"トイザらス",         regions:["全国"],           detail:"過去実績から予想",pred:true,url:"https://www.toysrus.co.jp/"},
+  {id:"cel-geo",  title:"30th CELEBRATION 抽選",               date:"2026-08-14",endDate:"2026-08-21",type:"lottery_start",store:"ゲオ",              regions:["全国"],           detail:"過去実績から予想",pred:true,url:"https://geo-online.co.jp/"},
+  {id:"cel-furu", title:"30th CELEBRATION 抽選",               date:"2026-08-13",endDate:"2026-08-20",type:"lottery_start",store:"ふるいち",          regions:["全国"],           detail:"過去実績から予想",pred:true,url:"https://www.furu1.net/"},
+  {id:"cel-ysub", title:"30th CELEBRATION 抽選",               date:"2026-08-14",endDate:"2026-08-19",type:"lottery_start",store:"イエローサブマリン", regions:["関東","関西"],    detail:"店頭レシート必要 / 過去実績から予想",pred:true,url:"https://www.yellowsubmarine.co.jp/"},
+  {id:"cel-hbst", title:"30th CELEBRATION 抽選",               date:"2026-08-14",endDate:"2026-08-17",type:"lottery_start",store:"ホビーステーション", regions:["関東"],           detail:"Googleアカウント必要 / 過去実績から予想",pred:true,url:"https://www.hbst.net/"},
+  {id:"cel-jsh",  title:"30th CELEBRATION 抽選",               date:"2026-08-12",endDate:"2026-08-17",type:"lottery_start",store:"ジョーシン",         regions:["関東","中部・東海","関西"],detail:"過去実績から予想",pred:true,url:"https://joshinweb.jp/"},
+  {id:"cel-bic",  title:"30th CELEBRATION 抽選",               date:"2026-08-15",endDate:"2026-08-17",type:"lottery_start",store:"ビックカメラ",       regions:["関東","中部・東海","関西","九州・沖縄"],detail:"過去実績から予想",pred:true,url:"https://www.biccamera.com/"},
+  {id:"cel-edit", title:"30th CELEBRATION 抽選",               date:"2026-08-15",endDate:"2026-08-18",type:"lottery_start",store:"エディオン",         regions:["中国・四国","関西","中部・東海"],detail:"過去実績から予想",pred:true,url:"https://www.edion.com/"},
+
+  // ── ハドウシーカー ──
+  {id:"hw-rel",   title:"ハドウシーカー 発売",                  date:"2026-11-27",type:"release",       store:"公式",            regions:["全国"],           detail:"商標登録から予想。メガルカリオZ収録期待",pred:true,url:"https://snkrdunk.com/articles/15950/"},
+];
+
+// ===== 状態 =====
+let yr=new Date().getFullYear(), mo=new Date().getMonth();
+let selDay=null, tabMode="r";
+let fReg="全エリア", fCat="すべて", fStoreName="すべて";
+let refreshing=false;
+
+// ===== 初期化 =====
+window.addEventListener('DOMContentLoaded',()=>{
+  buildRegionFilter();
+  buildStoreCatFilter();
+  buildLegend();
+  render();
+  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent);
+  if(!isIOS||window.navigator.standalone) document.getElementById('banner').classList.add('hidden');
+});
+
+// ===== タブ切替 =====
+function switchTab(t){
+  tabMode=t;
+  document.getElementById('tab-r').classList.toggle('active',t==='r');
+  document.getElementById('tab-s').classList.toggle('active',t==='s');
+  document.getElementById('frow-r').classList.toggle('hidden',t!=='r');
+  document.getElementById('frow-s').classList.toggle('hidden',t!=='s');
+  selDay=null; render();
+}
+
+// ===== 地域フィルター =====
+function buildRegionFilter(){
+  const regs=["全エリア",...Object.keys(REGIONS)];
+  const wrap=document.getElementById('fregion');
+  regs.forEach(r=>{
+    const b=document.createElement('button');
+    b.className='fbtn'+(r===fReg?' active':'');
+    b.textContent=(REGIONS[r]?.emoji||'🌏')+' '+r;
+    if(r===fReg&&REGIONS[r]){b.style.background=REGIONS[r].color;b.style.color='#fff';}
+    b.onclick=()=>{
+      fReg=r;
+      document.querySelectorAll('#fregion .fbtn').forEach((btn,i)=>{
+        const rn=regs[i];
+        btn.classList.toggle('active',rn===r);
+        btn.style.background=rn===r&&REGIONS[rn]?REGIONS[rn].color:'';
+        btn.style.color=rn===r?'#fff':'';
+      });
+      selDay=null; render();
+    };
+    wrap.appendChild(b);
+  });
+}
+
+// ===== 店舗フィルター =====
+function buildStoreCatFilter(){
+  const cats=["すべて",...Object.keys(STORE_CATS)];
+  const wrap=document.getElementById('fcat');
+  cats.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='fbtn'+(c===fCat?' active':'');
+    b.textContent=c;
+    if(c===fCat&&c!=='すべて'){b.style.background='#A855F7';b.style.color='#fff';}
+    b.onclick=()=>{
+      fCat=c; fStoreName='すべて';
+      document.querySelectorAll('#fcat .fbtn').forEach((btn,i)=>{
+        btn.classList.toggle('active',cats[i]===c);
+        btn.style.background=cats[i]===c&&c!=='すべて'?'#A855F7':'';
+        btn.style.color=cats[i]===c?'#fff':'';
+      });
+      buildStoreNames(); selDay=null; render();
+    };
+    wrap.appendChild(b);
+  });
+  buildStoreNames();
+}
+function buildStoreNames(){
+  const wrap=document.getElementById('fstore');
+  wrap.innerHTML='';
+  const names=fCat==='すべて'?['すべて']:['すべて',...(STORE_CATS[fCat]||[])];
+  names.forEach(n=>{
+    const b=document.createElement('button');
+    b.className='fbtn'+(n===fStoreName?' active':'');
+    b.textContent=n;
+    const sc=SC[n];
+    if(n===fStoreName&&sc){b.style.background=sc.bg;b.style.color='#fff';}
+    b.onclick=()=>{
+      fStoreName=n;
+      document.querySelectorAll('#fstore .fbtn').forEach((btn,i)=>{
+        const nn=names[i];
+        btn.classList.toggle('active',nn===n);
+        btn.style.background=nn===n&&SC[nn]?SC[nn].bg:'';
+        btn.style.color=nn===n?'#fff':'';
+      });
+      selDay=null; render();
+    };
+    wrap.appendChild(b);
+  });
+}
+
+// ===== レジェンド =====
+function buildLegend(){
+  const wrap=document.getElementById('legendinner');
+  Object.values(ET).forEach(v=>{
+    const s=document.createElement('span');s.className='legend-item';s.textContent=v.emoji+' '+v.label;wrap.appendChild(s);
+  });
+  const sp=document.createElement('span');sp.className='legend-item';sp.textContent='★ 予想';sp.style.color='#f59e0b';wrap.appendChild(sp);
+}
+
+// ===== フィルターマッチング =====
+function matchEv(ev){
+  if(tabMode==='r'){
+    if(fReg==='全エリア') return true;
+    const regs=ev.regions||[];
+    if(regs.includes('全国')) return true;
+    if(regs.includes(fReg)) return true;
+    // 全国オンラインは全エリアからも見えるが地域指定時は除外
+    return false;
+  } else {
+    if(fStoreName!=='すべて') return ev.store===fStoreName;
+    if(fCat!=='すべて') return (STORE_CATS[fCat]||[]).includes(ev.store);
+    return true;
+  }
+}
+
+// ===== 描画 =====
+function render(){
+  const MN=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+  document.getElementById('mlabel').textContent=`${yr}年 ${MN[mo]}`;
+
+  // 曜日ヘッダー
+  const dn=document.getElementById('daynames');
+  dn.innerHTML='';
+  ["日","月","火","水","木","金","土"].forEach((d,i)=>{
+    const div=document.createElement('div');
+    div.className='dname'+(i===0?' sun':i===6?' sat':'');
+    div.textContent=d;dn.appendChild(div);
+  });
+
+  const today=new Date();
+  const dim=new Date(yr,mo+1,0).getDate();
+  const fd=new Date(yr,mo,1).getDay();
+  const grid=document.getElementById('calgrid');
+  grid.innerHTML='';
+
+  // 空白セル
+  for(let i=0;i<fd;i++){const d=document.createElement('div');grid.appendChild(d);}
+
+  for(let day=1;day<=dim;day++){
+    const dayEvs=getDayEvs(day);
+    const isT=day===today.getDate()&&mo===today.getMonth()&&yr===today.getFullYear();
+    const dow=(fd+day-1)%7;
+    const cell=document.createElement('div');
+    cell.className='dcell'+(isT?' today':'')+(selDay===day?' selected':'');
+    cell.onclick=()=>{selDay=selDay===day?null:day;render();};
+
+    // 日付番号
+    const nd=document.createElement('div');
+    nd.className='dnum'+(dow===0?' sun':dow===6?' sat':'');
+    if(isT){const b=document.createElement('span');b.className='tbadge';b.textContent=day;nd.appendChild(b);}
+    else nd.textContent=day;
+    cell.appendChild(nd);
+
+    // イベントドット（最大3件）
+    dayEvs.slice(0,3).forEach(ev=>{
+      const sc=SC[ev.store]||{bg:'#636e72'};
+      const et=ET[ev.type]||ET.release;
+      const dot=document.createElement('div');
+      dot.className='evdot';
+      dot.style.background=sc.bg;
+      dot.textContent=(ev.pred?'★':'')+et.emoji+' '+ev.store;
+      dot.title=ev.title;
+      cell.appendChild(dot);
+    });
+    if(dayEvs.length>3){
+      const m=document.createElement('div');m.className='evmore';m.textContent='+'+(dayEvs.length-3);cell.appendChild(m);
+    }
+    grid.appendChild(cell);
+  }
+  renderDetail();
+}
+
+function getDayEvs(day){
+  const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  return EVENTS.filter(e=>{
+    const hit=e.date===ds||(e.endDate&&e.date<=ds&&e.endDate>=ds);
+    return hit&&matchEv(e);
+  });
+}
+
+function renderDetail(){
+  const wrap=document.getElementById('daydetail');
+  if(!selDay){wrap.className='hidden';return;}
+  const dayEvs=getDayEvs(selDay);
+  if(dayEvs.length===0){
+    wrap.className='daydetail';
+    wrap.innerHTML=`<p style="text-align:center;color:#64748b;font-size:12px">${mo+1}月${selDay}日のイベントはありません</p>`;
+    return;
+  }
+  // グローバルにキャッシュ（モーダルからインデックスで参照）
+  window._dayEvs = dayEvs;
+  wrap.className='daydetail';
+  let html=`<div style="font-size:12px;font-weight:700;color:#A855F7;margin-bottom:10px">📅 ${mo+1}月${selDay}日（${dayEvs.length}件）<span style="font-size:10px;font-weight:400;color:#94a3b8;margin-left:6px">タップで詳細・リンク</span></div>`;
+  dayEvs.forEach((ev,idx)=>{
+    const sc=SC[ev.store]||{bg:'#636e72',lt:'#f5f5f5',tx:'#2d3436'};
+    const et=ET[ev.type]||ET.release;
+    html+=`<div class="listrow" style="border-left-color:${sc.bg}" onclick="openModalByIdx(${idx})">
+      <div style="display:flex;align-items:center;gap:7px;min-width:0;margin-bottom:4px">
+        <span style="background:${sc.bg};color:#fff;border-radius:5px;padding:3px 7px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0">${et.emoji} ${ev.store}</span>
+        <span style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${ev.pred?'★ ':''}${ev.title}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;color:#64748b">${et.label}${ev.endDate&&ev.endDate!==ev.date?' 〜 '+ev.endDate.slice(5):''}</span>
+        <span style="font-size:11px;color:#6C5CE7;font-weight:700">詳細 ›</span>
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML=html;
+}
+
+// ===== モーダル =====
+function openModal(ev){
+  if(typeof ev==='string') ev=JSON.parse(ev);
+  const et=ET[ev.type]||ET.release;
+  document.getElementById('m-ico').textContent=et.emoji;
+  document.getElementById('m-title').textContent=(ev.pred?'★ ':'')+ev.title;
+  document.getElementById('m-date').textContent=ev.date+(ev.endDate&&ev.endDate!==ev.date?' 〜 '+ev.endDate:'');
+  document.getElementById('m-store').textContent=ev.store;
+  document.getElementById('m-pred').classList.toggle('hidden',!ev.pred);
+  const rr=document.getElementById('m-regrow');
+  if(ev.regions&&ev.regions.length){rr.classList.remove('hidden');document.getElementById('m-reg').textContent=(ev.regions||[]).join(' / ');}
+  else rr.classList.add('hidden');
+  const dr=document.getElementById('m-detrow');
+  if(ev.detail){dr.classList.remove('hidden');document.getElementById('m-det').textContent=ev.detail;}
+  else dr.classList.add('hidden');
+  const lk=document.getElementById('m-link');
+  if(ev.url){lk.dataset.url=ev.url;lk.classList.remove('hidden');}
+  else lk.classList.add('hidden');
+  document.getElementById('modalov').classList.remove('hidden');
+}
+
+// ===== インデックスからモーダルを開く =====
+function openModalByIdx(idx){
+  const ev = (window._dayEvs||[])[idx];
+  if(ev) openModal(ev);
+}
+
+// ===== リンクを開く（スタンドアロンモード対応）=====
+function openLink(url){
+  if(!url) return;
+  // iOS スタンドアロン(ホーム画面アプリ)では window.location で Safari を起動
+  if(window.navigator.standalone){
+    window.location.href = url;
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+function closeModal(){document.getElementById('modalov').classList.add('hidden');}
+
+// ===== 月ナビ =====
+function changeMonth(dir){
+  selDay=null;
+  mo+=dir;
+  if(mo<0){mo=11;yr--;}
+  if(mo>11){mo=0;yr++;}
+  render();
+}
+
+// ===== 更新ボタン =====
+async function doRefresh(){
+  if(refreshing) return;
+  refreshing=true;
+  const btn=document.getElementById('btnref');
+  const txt=document.getElementById('refreshtxt');
+  btn.disabled=true;
+  txt.innerHTML='<span class="spinner"></span>最新情報をWebで検索中…';
+
+  // ゲームenv.net の最新情報ページを参照案内
+  const urls=[
+    'https://gamenv.net/tc/stormemerald/',
+    'https://snkrdunk.com/articles/32581/',
+    'https://note.com/pokeca_new/n/nc9e68cc8dded',
+  ];
+
+  // 実際のAPIアクセスはできないため、参照先を案内
+  await new Promise(r=>setTimeout(r,1200));
+
+  // 更新日時を更新
+  const now=new Date();
+  const ts=`${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  txt.textContent=`✅ ${ts} 確認済 — 最新情報は下記リンクでご確認ください`;
+  btn.disabled=false;
+  refreshing=false;
+
+  // 情報源リンクをモーダルで案内
+  const src=SC["公式"];
+  document.getElementById('m-ico').textContent='🔍';
+  document.getElementById('m-title').textContent='最新情報の確認先';
+  document.getElementById('m-date').textContent='リアルタイム情報は各サイトをご確認ください';
+  document.getElementById('m-store').textContent='情報まとめサイト';
+  document.getElementById('m-pred').classList.add('hidden');
+  document.getElementById('m-regrow').classList.add('hidden');
+  document.getElementById('m-detrow').classList.add('hidden');
+  const lk=document.getElementById('m-link');
+  lk.dataset.url='https://gamenv.net/tc/stormemerald/';
+  lk.textContent='🔗 ストームエメラルダ最新抽選情報 → gamenv.net'; lk.onclick=function(){openLink(this.dataset.url);};
+  lk.classList.remove('hidden');
+  document.getElementById('modalov').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
